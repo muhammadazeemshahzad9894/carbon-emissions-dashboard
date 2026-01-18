@@ -33,7 +33,7 @@ app.layout = html.Div([
                style={'textAlign': 'center', 'color': '#3498db', 'fontSize': '14px', 'fontWeight': 'bold'})
     ], style={'backgroundColor': '#ecf0f1', 'padding': '20px', 'marginBottom': '20px'}),
     
-    # Filters Row
+    # Filters Row - Clean single row
     html.Div([
         html.Div([
             html.Label("Select Cluster:", style={'fontWeight': 'bold'}),
@@ -45,43 +45,55 @@ app.layout = html.Div([
                 clearable=False,
                 style={'width': '100%'}
             )
-        ], style={'width': '30%', 'display': 'inline-block', 'marginRight': '20px'}),
+        ], style={'width': '25%', 'display': 'inline-block', 'marginRight': '30px', 'verticalAlign': 'top'}),
         
         html.Div([
-            html.Label("Select Year Range:", style={'fontWeight': 'bold'}),
-            dcc.RangeSlider(
-                id='year-slider',
-                min=df['year'].min(),
-                max=df['year'].max(),
-                value=[df['year'].min(), df['year'].max()],
-                marks={str(y): str(y) for y in range(2000, 2024, 5)},
-                step=1
+            html.Label("Select Year:", style={'fontWeight': 'bold'}),
+            dcc.Dropdown(
+                id='year-dropdown',
+                options=[{'label': str(y), 'value': y} for y in sorted(df['year'].unique(), reverse=True)],
+                value=df['year'].max(),
+                clearable=False,
+                style={'width': '100%'}
             )
-        ], style={'width': '60%', 'display': 'inline-block'}),
+        ], style={'width': '15%', 'display': 'inline-block', 'marginRight': '30px', 'verticalAlign': 'top'}),
         
         html.Div([
-            html.Span("Selected: ", style={'fontWeight': 'bold'}),
+            html.Span("Selected Country: ", style={'fontWeight': 'bold'}),
             html.Span(id='selected-country-display', children="None", 
                      style={'color': '#e74c3c', 'fontWeight': 'bold'})
-        ], style={'marginTop': '10px'})
+        ], style={'width': '25%', 'display': 'inline-block', 'verticalAlign': 'top', 'paddingTop': '25px'})
         
-    ], style={'padding': '10px 20px', 'backgroundColor': '#fff', 'marginBottom': '20px'}),
+    ], style={'padding': '15px 20px', 'backgroundColor': '#fff', 'marginBottom': '20px'}),
     
-    # Charts Row 1 - INCREASED MAP SIZE
+    # Charts Row 1
     html.Div([
         html.Div([
-            dcc.Graph(id='map-chart', style={'height': '450px'})  # Increased from 450px
-        ], style={'width': '50%', 'display': 'inline-block', 'verticalAlign': 'top'}),  # Increased from 48%
+            dcc.Graph(id='map-chart', style={'height': '450px'})
+        ], style={'width': '50%', 'display': 'inline-block', 'verticalAlign': 'top'}),
         
         html.Div([
-            dcc.Graph(id='scatter-chart', style={'height': '500px'})  # Match height
+            dcc.Graph(id='scatter-chart', style={'height': '500px'})
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '2%'})
     ], style={'marginBottom': '20px'}),
     
     # Charts Row 2
     html.Div([
+        # Time Series with its own range slider below
         html.Div([
-            dcc.Graph(id='time-series-chart', style={'height': '400px'})
+            dcc.Graph(id='time-series-chart', style={'height': '350px'}),
+            html.Div([
+                html.Label("Year Range:", style={'fontWeight': 'bold', 'fontSize': '12px', 'marginRight': '10px'}),
+                dcc.RangeSlider(
+                    id='time-series-range-slider',
+                    min=df['year'].min(),
+                    max=df['year'].max(),
+                    value=[df['year'].min(), df['year'].max()],
+                    marks={str(y): str(y) for y in range(2000, 2024, 5)},
+                    step=1,
+                    tooltip={"placement": "bottom", "always_visible": True}
+                )
+            ], style={'padding': '0px 40px 10px 40px'})
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'}),
         
         html.Div([
@@ -91,7 +103,7 @@ app.layout = html.Div([
     
     # Footer
     html.Div([
-        html.P("Note: Russia excluded as outlier (1,816 Mt CO2). Clusters based on 6 features: CO2, CO2/capita, CO2/GDP, GDP, Population, and Emission Growth (2000-2023). Bubble size represents total CO2 emissions (normalized within each cluster).",
+        html.P("Note: Russia excluded as outlier (1,816 Mt CO2). Clusters based on 6 features: CO2, CO2/capita, CO2/GDP, GDP, Population, and Emission Growth (2000-2023).",
                style={'textAlign': 'center', 'color': '#7f8c8d', 'fontSize': '12px'})
     ], style={'padding': '20px', 'backgroundColor': '#ecf0f1', 'marginTop': '20px'})
     
@@ -139,36 +151,40 @@ def update_selected_country(map_click, scatter_click, bar_click, current_selecti
     Output('time-series-chart', 'figure'),
     Output('bar-chart', 'figure'),
     Input('cluster-filter', 'value'),
-    Input('year-slider', 'value'),
+    Input('year-dropdown', 'value'),
+    Input('time-series-range-slider', 'value'),
     Input('selected-country-store', 'data')
 )
-def update_charts(cluster_filter, year_range, selected_country):
+def update_charts(cluster_filter, selected_year, time_series_range, selected_country):
     
-    df_filtered = df[(df['year'] >= year_range[0]) & (df['year'] <= year_range[1])]
+    # Filter for single year (Map, Scatter, Bar)
+    df_year = df[df['year'] == selected_year].copy()
     
+    # Filter for time series range
+    df_time_filtered = df[(df['year'] >= time_series_range[0]) & (df['year'] <= time_series_range[1])]
+    
+    # Apply cluster filter
     if cluster_filter != 'All':
-        df_filtered = df_filtered[df_filtered['cluster_label'] == cluster_filter]
-    
-    latest_year = df_filtered['year'].max()
-    df_latest = df_filtered[df_filtered['year'] == latest_year].copy()
+        df_year = df_year[df_year['cluster_label'] == cluster_filter]
+        df_time_filtered = df_time_filtered[df_time_filtered['cluster_label'] == cluster_filter]
     
     # Bubble sizes (normalized within each cluster)
-    df_latest['bubble_size'] = df_latest.groupby('cluster_label')['co2'].transform(
+    df_year['bubble_size'] = df_year.groupby('cluster_label')['co2'].transform(
         lambda x: (x / x.max()) * 400 + 40
     )
     
     # =====================
-    # Chart 1: Choropleth Map - NORMAL BEHAVIOR RESTORED
+    # Chart 1: Choropleth Map
     # =====================
     if selected_country:
-        df_latest['opacity'] = df_latest['country'].apply(lambda x: 1.0 if x == selected_country else 0.3)
+        df_year['opacity'] = df_year['country'].apply(lambda x: 1.0 if x == selected_country else 0.3)
     else:
-        df_latest['opacity'] = 1.0
+        df_year['opacity'] = 1.0
     
     map_fig = go.Figure()
     
-    for cluster in df_latest['cluster_label'].unique():
-        cluster_data = df_latest[df_latest['cluster_label'] == cluster]
+    for cluster in df_year['cluster_label'].unique():
+        cluster_data = df_year[df_year['cluster_label'] == cluster]
         map_fig.add_trace(go.Choropleth(
             locations=cluster_data['iso_code'],
             z=[1] * len(cluster_data),
@@ -186,7 +202,10 @@ def update_charts(cluster_filter, year_range, selected_country):
         ))
     
     map_fig.update_layout(
-        title=f'European Countries by Cluster ({latest_year})',
+        title=dict(
+            text='European Countries by Cluster<br><sup>Clusters based on 2000-2023 emission patterns</sup>',
+            font=dict(size=16)
+        ),
         geo=dict(
             scope='world',
             showframe=False,
@@ -206,32 +225,31 @@ def update_charts(cluster_filter, year_range, selected_country):
             lonaxis=dict(range=[-12, 45]),
             lataxis=dict(range=[34, 72])
         ),
-        margin=dict(l=0, r=0, t=40, b=0),
+        margin=dict(l=0, r=0, t=50, b=0),
         legend_title_text='Cluster',
         uirevision='constant'
-        # Removed: dragmode=False (now dragging is enabled)
     )
     
     # =====================
     # Chart 2: Scatter Plot
     # =====================
     if selected_country:
-        df_latest['scatter_opacity'] = df_latest['country'].apply(lambda x: 1.0 if x == selected_country else 0.3)
-        df_latest['marker_size'] = df_latest.apply(
+        df_year['scatter_opacity'] = df_year['country'].apply(lambda x: 1.0 if x == selected_country else 0.3)
+        df_year['marker_size'] = df_year.apply(
             lambda x: x['bubble_size'] * 1.3 if x['country'] == selected_country else x['bubble_size'], axis=1
         )
-        df_latest['line_width'] = df_latest['country'].apply(lambda x: 3 if x == selected_country else 1)
-        df_latest['line_color'] = df_latest['country'].apply(lambda x: 'black' if x == selected_country else 'white')
+        df_year['line_width'] = df_year['country'].apply(lambda x: 3 if x == selected_country else 1)
+        df_year['line_color'] = df_year['country'].apply(lambda x: 'black' if x == selected_country else 'white')
     else:
-        df_latest['scatter_opacity'] = 0.75
-        df_latest['marker_size'] = df_latest['bubble_size']
-        df_latest['line_width'] = 1
-        df_latest['line_color'] = 'white'
+        df_year['scatter_opacity'] = 0.75
+        df_year['marker_size'] = df_year['bubble_size']
+        df_year['line_width'] = 1
+        df_year['line_color'] = 'white'
     
     scatter_fig = go.Figure()
     
-    for cluster in df_latest['cluster_label'].unique():
-        cluster_data = df_latest[df_latest['cluster_label'] == cluster]
+    for cluster in df_year['cluster_label'].unique():
+        cluster_data = df_year[df_year['cluster_label'] == cluster]
         max_size_in_cluster = cluster_data['marker_size'].max()
         
         scatter_fig.add_trace(go.Scatter(
@@ -257,21 +275,28 @@ def update_charts(cluster_filter, year_range, selected_country):
         ))
     
     scatter_fig.update_layout(
-        title=f'Carbon Efficiency Profile ({latest_year})',
+        title=dict(
+            text=f'Carbon Efficiency Profile ({selected_year})<br><sup>Bubble size represents total CO2 emissions (normalized within each cluster)</sup>',
+            font=dict(size=16)
+        ),
         xaxis_title='CO2 per GDP (kg/$)',
         yaxis_title='CO2 per Capita (t/person)',
-        margin=dict(l=40, r=40, t=40, b=40),
+        margin=dict(l=40, r=40, t=60, b=40),
         legend_title_text='Cluster',
+        showlegend=True,
         uirevision='constant'
     )
     
     # =====================
     # Chart 3: Time Series
     # =====================
-    if selected_country and selected_country in df_filtered['country'].values:
-        df_country = df_filtered[df_filtered['country'] == selected_country]
+    range_start = time_series_range[0]
+    range_end = time_series_range[1]
+    
+    if selected_country and selected_country in df_time_filtered['country'].values:
+        df_country = df_time_filtered[df_time_filtered['country'] == selected_country]
         cluster_of_selected = df_country['cluster_label'].iloc[0]
-        df_cluster_avg = df_filtered[df_filtered['cluster_label'] == cluster_of_selected].groupby('year')['co2'].mean().reset_index()
+        df_cluster_avg = df_time_filtered[df_time_filtered['cluster_label'] == cluster_of_selected].groupby('year')['co2'].mean().reset_index()
         
         time_fig = go.Figure()
         
@@ -293,7 +318,7 @@ def update_charts(cluster_filter, year_range, selected_country):
         ))
         
         time_fig.update_layout(
-            title=f'CO2 Emissions: {selected_country} vs Cluster Average',
+            title=f'CO2 Emissions: {selected_country} vs Cluster Average ({range_start}-{range_end})',
             xaxis_title='Year',
             yaxis_title='CO2 Emissions (Mt)',
             margin=dict(l=40, r=40, t=40, b=40),
@@ -301,14 +326,14 @@ def update_charts(cluster_filter, year_range, selected_country):
             uirevision='constant'
         )
     else:
-        df_time = df_filtered.groupby(['year', 'cluster_label'])['co2'].sum().reset_index()
+        df_time = df_time_filtered.groupby(['year', 'cluster_label'])['co2'].sum().reset_index()
         time_fig = px.line(
             df_time,
             x='year',
             y='co2',
             color='cluster_label',
             color_discrete_map=color_map,
-            title='CO2 Emissions Over Time by Cluster (Total)',
+            title=f'CO2 Emissions Over Time by Cluster ({range_start}-{range_end})',
             labels={'co2': 'CO2 Emissions (Mt)', 'year': 'Year'}
         )
         time_fig.update_layout(
@@ -320,7 +345,8 @@ def update_charts(cluster_filter, year_range, selected_country):
     # =====================
     # Chart 4: Bar Chart
     # =====================
-    df_bar = df_latest.nlargest(10, 'co2')[['country', 'co2', 'cluster_label']].copy()
+    top_n = min(10, len(df_year))
+    df_bar = df_year.nlargest(top_n, 'co2')[['country', 'co2', 'cluster_label']].copy()
     
     if selected_country:
         df_bar['opacity'] = df_bar['country'].apply(lambda x: 1.0 if x == selected_country else 0.4)
@@ -350,7 +376,7 @@ def update_charts(cluster_filter, year_range, selected_country):
         ))
     
     bar_fig.update_layout(
-        title=f'Top 10 CO2 Emitters ({latest_year})',
+        title=f'Top {top_n} CO2 Emitters ({selected_year})',
         xaxis_title='CO2 Emissions (Mt)',
         yaxis_title='',
         yaxis={'categoryorder': 'total ascending'},
