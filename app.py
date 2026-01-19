@@ -15,6 +15,12 @@ color_map = {
     'Carbon Intensive': '#AA3377'
 }
 
+# Chart config - remove unnecessary toolbar buttons for clean, consistent UI
+chart_config = {
+    'modeBarButtonsToRemove': ['select2d', 'lasso2d', 'pan2d', 'zoom2d', 'autoScale2d'],
+    'displaylogo': False
+}
+
 # Initialize app
 app = dash.Dash(__name__)
 server = app.server
@@ -69,11 +75,11 @@ app.layout = html.Div([
     # Charts Row 1
     html.Div([
         html.Div([
-            dcc.Graph(id='map-chart', style={'height': '450px'})
+            dcc.Graph(id='map-chart', style={'height': '450px'}, config=chart_config)
         ], style={'width': '50%', 'display': 'inline-block', 'verticalAlign': 'top'}),
         
         html.Div([
-            dcc.Graph(id='scatter-chart', style={'height': '500px'})
+            dcc.Graph(id='scatter-chart', style={'height': '500px'}, config=chart_config)
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '2%'})
     ], style={'marginBottom': '20px'}),
     
@@ -81,7 +87,7 @@ app.layout = html.Div([
     html.Div([
         # Time Series with its own range slider below
         html.Div([
-            dcc.Graph(id='time-series-chart', style={'height': '350px'}),
+            dcc.Graph(id='time-series-chart', style={'height': '350px'}, config=chart_config),
             html.Div([
                 html.Label("Year Range:", style={'fontWeight': 'bold', 'fontSize': '12px', 'marginRight': '10px'}),
                 dcc.RangeSlider(
@@ -97,7 +103,7 @@ app.layout = html.Div([
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'}),
         
         html.Div([
-            dcc.Graph(id='bar-chart', style={'height': '400px'})
+            dcc.Graph(id='bar-chart', style={'height': '400px'}, config=chart_config)
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '2%'})
     ]),
     
@@ -220,9 +226,9 @@ def update_charts(cluster_filter, selected_year, time_series_range, selected_cou
             showcountries=True,
             countrycolor='white',
             countrywidth=0.5,
-            center=dict(lat=54, lon=15),
+            center=dict(lat=54, lon=10),
             projection_type='mercator',
-            lonaxis=dict(range=[-12, 45]),
+            lonaxis=dict(range=[-25, 45]),
             lataxis=dict(range=[34, 72])
         ),
         margin=dict(l=0, r=0, t=50, b=0),
